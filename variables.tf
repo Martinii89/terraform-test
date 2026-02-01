@@ -73,3 +73,7 @@ variable "cloudflare_proxy_wildcard_domain" {
   type        = bool
   default     = false
 }
+variable "git_repo_url" {
+  description = "Git repository URL to clone for infrastructure"
+  type        = string
+}

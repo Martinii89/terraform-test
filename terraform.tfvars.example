@@ -41,3 +41,7 @@ cloudflare_proxy_main_domain = false
 # Note: Cloudflare free tier may have TLS certificate issues with nested subdomains when proxied
 # For free tier, keep this as false and only proxy the main domain if needed
 cloudflare_proxy_wildcard_domain = false
+
+# Git repository URL to clone for infrastructure
+# Example: https://github.com/Martinii89/terraform-test.git
+git_repo_url = ""

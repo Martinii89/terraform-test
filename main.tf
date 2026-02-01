@@ -21,6 +21,8 @@ resource "digitalocean_droplet" "web" {
 
   user_data = templatefile("${path.module}/templates/cloud-init.yaml", {
     CF_API_TOKEN = var.cloudflare_api_token
+    GIT_REPO_URL = var.git_repo_url
+    ENVIRONMENT  = var.environment
   })
 
   lifecycle {

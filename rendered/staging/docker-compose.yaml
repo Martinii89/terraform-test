@@ -9,9 +9,11 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/sites:/etc/nginx/conf.d:ro
-      - ./certbot/conf:/etc/letsencrypt:ro
+      - certs:/etc/letsencrypt:ro
     depends_on:
-      - api
+      certbot-init:
+        condition: service_completed_successfully
+        required: true
 
   api:
     image: mendhak/http-https-echo:39
@@ -22,10 +24,13 @@ services:
       - "3000"
 
 
-  certbot:
+  certbot-init:
     image: certbot/dns-cloudflare
-    container_name: certbot
+    container_name: certbot-init
     volumes:
-      - ./certbot/conf:/etc/letsencrypt
+      - certs:/etc/letsencrypt
       - ./certbot/cloudflare.ini:/etc/cloudflare.ini:ro
-    command: certonly --dns-cloudflare --dns-cloudflare-credentials /etc/cloudflare.ini -d terraform.martinn.no --agree-tos -n -m admin@terraform.martinn.no
+    command: certonly --dns-cloudflare --dns-cloudflare-credentials /etc/cloudflare.ini -d terraform.martinn.no --agree-tos -n -m m4rtini89@gmail.com --post-hook "chmod -R 755 /etc/letsencrypt/live && chmod -R 755 /etc/letsencrypt/archive"
+
+volumes:
+  certs:

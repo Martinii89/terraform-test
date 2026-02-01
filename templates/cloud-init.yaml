@@ -9,9 +9,17 @@ packages:
   - docker-compose
 
 runcmd:
-  # Clone infra repo
-  - git clone https://github.com/Martinii89/terraform-test.git /opt/infra
-  - cd /opt/infra/infra || { echo "Failed to change to /opt/infra/infra"; exit 1; }
+  # Clone infra repo to /opt/infra (git repository)
+  - git clone ${GIT_REPO_URL} /opt/infra
+
+  # Create app working directory
+  - mkdir -p /opt/app
+
+  # Copy rendered config files for this environment to the app directory
+  - cp /opt/infra/rendered/${ENVIRONMENT}/* /opt/app/
+  - cp -r /opt/infra/rendered/${ENVIRONMENT}/nginx /opt/app/
+
+  - cd /opt/app || { echo "Failed to change to /opt/app"; exit 1; }
 
   # Create secrets file from cloud-init vars
   - echo "CF_API_TOKEN=${CF_API_TOKEN}" > .env
