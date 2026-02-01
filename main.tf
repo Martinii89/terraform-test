@@ -47,52 +47,75 @@ resource "acme_certificate" "main" {
   }
 }
 
-# Create Firewall for the droplet
-resource "digitalocean_firewall" "web" {
-  name        = "${var.environment}-web-firewall"
-  droplet_ids = [digitalocean_droplet.web.id]
+# Upload certificate to DigitalOcean
+resource "digitalocean_certificate" "main" {
+  name              = "${var.environment}-${replace(var.domain_name, ".", "-")}-cert"
+  private_key       = acme_certificate.main.private_key_pem
+  leaf_certificate  = acme_certificate.main.certificate_pem
+  certificate_chain = acme_certificate.main.issuer_pem
 
-  # Allow SSH
-  inbound_rule {
-    protocol         = "tcp"
-    port_range       = "22"
-    source_addresses = ["0.0.0.0/0"]
-  }
-
-  # Allow HTTP
-  inbound_rule {
-    protocol         = "tcp"
-    port_range       = "80"
-    source_addresses = ["0.0.0.0/0"]
-  }
-
-  # Allow HTTPS
-  inbound_rule {
-    protocol         = "tcp"
-    port_range       = "443"
-    source_addresses = ["0.0.0.0/0"]
-  }
-
-  # Allow all outbound traffic
-  outbound_rule {
-    protocol              = "tcp"
-    port_range            = "1-65535"
-    destination_addresses = ["0.0.0.0/0"]
-  }
-
-  outbound_rule {
-    protocol              = "udp"
-    port_range            = "1-65535"
-    destination_addresses = ["0.0.0.0/0"]
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
-# Create DNS record in Cloudflare pointing to the Droplet
-resource "cloudflare_record" "droplet" {
+# Create Load Balancer with TLS termination
+resource "digitalocean_loadbalancer" "main" {
+  name   = "${var.environment}-lb"
+  region = var.region
+
+  droplet_ids = [digitalocean_droplet.web.id]
+
+  redirect_http_to_https   = true
+  enable_backend_keepalive = true
+
+
+  forwarding_rule {
+    entry_protocol = "http2"
+    entry_port     = 443
+
+    target_protocol = "http"
+    target_port     = 80
+
+    certificate_name = digitalocean_certificate.main.name
+  }
+
+  forwarding_rule {
+    entry_protocol = "http3"
+    entry_port     = 443
+
+    target_protocol = "http"
+    target_port     = 80
+
+    certificate_name = digitalocean_certificate.main.name
+  }
+
+  # HTTP traffic redirects to HTTPS at Cloudflare level or browser level
+  forwarding_rule {
+    entry_protocol = "http"
+    entry_port     = 80
+
+    target_protocol = "http"
+    target_port     = 80
+  }
+
+  healthcheck {
+    port     = 80
+    protocol = "http"
+    path     = "/"
+  }
+
+  sticky_sessions {
+    type = "none"
+  }
+}
+
+# Create DNS record in Cloudflare pointing to the Load Balancer
+resource "cloudflare_record" "loadbalancer" {
   zone_id = var.cloudflare_zone_id
   name    = var.domain_name
   type    = "A"
-  content = digitalocean_droplet.web.ipv4_address
+  content = digitalocean_loadbalancer.main.ip
   ttl     = var.cloudflare_proxy_main_domain ? 1 : 3600
   proxied = var.cloudflare_proxy_main_domain
 }
@@ -102,7 +125,7 @@ resource "cloudflare_record" "wildcard" {
   zone_id = var.cloudflare_zone_id
   name    = "*.${var.domain_name}"
   type    = "A"
-  content = digitalocean_droplet.web.ipv4_address
+  content = digitalocean_loadbalancer.main.ip
   ttl     = var.cloudflare_proxy_wildcard_domain ? 1 : 3600
   proxied = var.cloudflare_proxy_wildcard_domain
 }
