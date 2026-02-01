@@ -47,75 +47,52 @@ resource "acme_certificate" "main" {
   }
 }
 
-# Upload certificate to DigitalOcean
-resource "digitalocean_certificate" "main" {
-  name              = "${var.environment}-${replace(var.domain_name, ".", "-")}-cert"
-  private_key       = acme_certificate.main.private_key_pem
-  leaf_certificate  = acme_certificate.main.certificate_pem
-  certificate_chain = acme_certificate.main.issuer_pem
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# Create Load Balancer with TLS termination
-resource "digitalocean_loadbalancer" "main" {
-  name   = "${var.environment}-lb"
-  region = var.region
-
+# Create Firewall for the droplet
+resource "digitalocean_firewall" "web" {
+  name        = "${var.environment}-web-firewall"
   droplet_ids = [digitalocean_droplet.web.id]
 
-  redirect_http_to_https   = true
-  enable_backend_keepalive = true
-
-
-  forwarding_rule {
-    entry_protocol = "http2"
-    entry_port     = 443
-
-    target_protocol = "http"
-    target_port     = 80
-
-    certificate_name = digitalocean_certificate.main.name
+  # Allow SSH
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "22"
+    source_addresses = ["0.0.0.0/0"]
   }
 
-  forwarding_rule {
-    entry_protocol = "http3"
-    entry_port     = 443
-
-    target_protocol = "http"
-    target_port     = 80
-
-    certificate_name = digitalocean_certificate.main.name
+  # Allow HTTP
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "80"
+    source_addresses = ["0.0.0.0/0"]
   }
 
-  # HTTP traffic redirects to HTTPS at Cloudflare level or browser level
-  forwarding_rule {
-    entry_protocol = "http"
-    entry_port     = 80
-
-    target_protocol = "http"
-    target_port     = 80
+  # Allow HTTPS
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "443"
+    source_addresses = ["0.0.0.0/0"]
   }
 
-  healthcheck {
-    port     = 80
-    protocol = "http"
-    path     = "/"
+  # Allow all outbound traffic
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0"]
   }
 
-  sticky_sessions {
-    type = "none"
+  outbound_rule {
+    protocol              = "udp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0"]
   }
 }
 
-# Create DNS record in Cloudflare pointing to the Load Balancer
-resource "cloudflare_record" "loadbalancer" {
+# Create DNS record in Cloudflare pointing to the Droplet
+resource "cloudflare_record" "droplet" {
   zone_id = var.cloudflare_zone_id
   name    = var.domain_name
   type    = "A"
-  content = digitalocean_loadbalancer.main.ip
+  content = digitalocean_droplet.web.ipv4_address
   ttl     = var.cloudflare_proxy_main_domain ? 1 : 3600
   proxied = var.cloudflare_proxy_main_domain
 }
@@ -125,7 +102,7 @@ resource "cloudflare_record" "wildcard" {
   zone_id = var.cloudflare_zone_id
   name    = "*.${var.domain_name}"
   type    = "A"
-  content = digitalocean_loadbalancer.main.ip
+  content = digitalocean_droplet.web.ipv4_address
   ttl     = var.cloudflare_proxy_wildcard_domain ? 1 : 3600
   proxied = var.cloudflare_proxy_wildcard_domain
 }
