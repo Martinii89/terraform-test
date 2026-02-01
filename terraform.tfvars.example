@@ -1,0 +1,43 @@
+# DigitalOcean API Token
+# Get this from: https://cloud.digitalocean.com/account/api/tokens
+digitalocean_token = ""
+
+# Cloudflare API Token
+# Get this from: https://dash.cloudflare.com/profile/api-tokens
+cloudflare_api_token = ""
+
+# Cloudflare Zone ID
+# Find this in your Cloudflare dashboard under Domain Overview
+cloudflare_zone_id = ""
+
+# Your domain name
+domain_name = "example.com"
+
+# Email for Let's Encrypt certificate
+letsencrypt_email = "admin@example.com"
+
+# Optional: Customize these values
+environment  = "production"
+region       = "nyc3"
+droplet_name = "web-server-01"
+
+# Smallest available droplet size - 512MB RAM, 1vCPU, 10GB SSD
+# Other options: s-1vcpu-1gb-25gb, s-1vcpu-2gb-50gb, etc.
+droplet_size = "s-1vcpu-512mb-10gb"
+
+# Let's Encrypt staging vs production
+# Set to true for testing (higher rate limits, self-signed certs)
+# Set to false for production (real certificates)
+acme_staging = true  # Change to false when ready for production
+
+# Cloudflare DNS proxy toggle for main domain (e.g., example.com)
+# true = Record proxied through Cloudflare (orange cloud) - provides DDoS protection and caching
+# false = DNS only (gray cloud) - no proxy, faster DNS resolution
+cloudflare_proxy_main_domain = false
+
+# Cloudflare DNS proxy toggle for wildcard domain (e.g., *.example.com)
+# true = Record proxied through Cloudflare (orange cloud)
+# false = DNS only (gray cloud)
+# Note: Cloudflare free tier may have TLS certificate issues with nested subdomains when proxied
+# For free tier, keep this as false and only proxy the main domain if needed
+cloudflare_proxy_wildcard_domain = false

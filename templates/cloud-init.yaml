@@ -1,0 +1,12 @@
+#cloud-config
+# Update the list of packages available online
+package_update: true
+# Upgrade all installed packages
+package_upgrade: true
+packages:
+  - nginx
+  - docker.io
+  - docker-compose
+runcmd:
+  - wget -P /var/www/html https://raw.githubusercontent.com/do-community/terraform-sample-digitalocean-architectures/master/01-minimal-web-db-stack/assets/index.html
+  - sed -i "s/CHANGE_ME/web-${var.region}/" /var/www/html/index.html
