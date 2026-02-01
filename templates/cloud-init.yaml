@@ -10,14 +10,17 @@ packages:
 
 runcmd:
   # Clone infra repo
-  - git clone https://github.com/your-org/infra.git /opt/infra
-  - cd /opt/infra
+  - git clone https://github.com/Martinii89/terraform-test.git /opt/infra
+  - cd /opt/infra/infra || { echo "Failed to change to /opt/infra/infra"; exit 1; }
 
   # Create secrets file from cloud-init vars
   - echo "CF_API_TOKEN=${CF_API_TOKEN}" > .env
+
+  # Create certbot directory structure before creating files
+  - mkdir -p certbot
   - echo "dns_cloudflare_api_token = ${CF_API_TOKEN}" > certbot/cloudflare.ini
   - chmod 600 certbot/cloudflare.ini
 
   # Start stack
-  - docker compose pull
-  - docker compose up -d
+  - docker-compose pull
+  - docker-compose up -d

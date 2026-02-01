@@ -19,7 +19,9 @@ resource "digitalocean_droplet" "web" {
 
   tags = [var.environment, "web"]
 
-  user_data = file("${path.module}/templates/cloud-init.yaml")
+  user_data = templatefile("${path.module}/templates/cloud-init.yaml", {
+    CF_API_TOKEN = var.cloudflare_api_token
+  })
 
   lifecycle {
     create_before_destroy = true
@@ -28,24 +30,24 @@ resource "digitalocean_droplet" "web" {
 
 
 # Create ACME account
-resource "acme_registration" "main" {}
+# resource "acme_registration" "main" {}
 
-# Create certificate with Cloudflare DNS validation
-resource "acme_certificate" "main" {
-  account_key_pem           = acme_registration.main.account_key_pem
-  common_name               = var.domain_name
-  subject_alternative_names = ["*.${var.domain_name}"]
-  depends_on                = [acme_registration.main]
+# # Create certificate with Cloudflare DNS validation
+# resource "acme_certificate" "main" {
+#   account_key_pem           = acme_registration.main.account_key_pem
+#   common_name               = var.domain_name
+#   subject_alternative_names = ["*.${var.domain_name}"]
+#   depends_on                = [acme_registration.main]
 
-  dns_challenge {
-    provider = "cloudflare"
+#   dns_challenge {
+#     provider = "cloudflare"
 
-    config = {
-      CLOUDFLARE_DNS_API_TOKEN = var.cloudflare_api_token
-      CLOUDFLARE_ZONE_ID       = var.cloudflare_zone_id
-    }
-  }
-}
+#     config = {
+#       CLOUDFLARE_DNS_API_TOKEN = var.cloudflare_api_token
+#       CLOUDFLARE_ZONE_ID       = var.cloudflare_zone_id
+#     }
+#   }
+# }
 
 # Create Firewall for the droplet
 resource "digitalocean_firewall" "web" {
@@ -95,14 +97,4 @@ resource "cloudflare_record" "droplet" {
   content = digitalocean_droplet.web.ipv4_address
   ttl     = var.cloudflare_proxy_main_domain ? 1 : 3600
   proxied = var.cloudflare_proxy_main_domain
-}
-
-# Optional: Create a wildcard DNS record for subdomains
-resource "cloudflare_record" "wildcard" {
-  zone_id = var.cloudflare_zone_id
-  name    = "*.${var.domain_name}"
-  type    = "A"
-  content = digitalocean_droplet.web.ipv4_address
-  ttl     = var.cloudflare_proxy_wildcard_domain ? 1 : 3600
-  proxied = var.cloudflare_proxy_wildcard_domain
 }
