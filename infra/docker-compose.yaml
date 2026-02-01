@@ -29,13 +29,5 @@ services:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/cloudflare.ini:/etc/cloudflare.ini:ro
       - /var/run/docker.sock:/var/run/docker.sock
-    entrypoint: >
-      /bin/sh -c "trap exit TERM;
-      while :; do
-        certbot renew
-          --dns-cloudflare
-          --dns-cloudflare-credentials /etc/cloudflare.ini
-          --quiet &&
-        docker kill -s HUP nginx;
-        sleep 12h;
-      done"
+    entrypoint: /bin/sh
+    command: -c "trap exit TERM; while :; do certbot renew --dns-cloudflare --dns-cloudflare-credentials /etc/cloudflare.ini --quiet && docker kill -s HUP nginx; sleep 12h; done"
