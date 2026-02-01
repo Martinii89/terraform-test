@@ -1,7 +1,21 @@
+# Safeguard: Validate that the rendered environment folder exists
+resource "null_resource" "validate_rendered_environment" {
+  provisioner "local-exec" {
+    command     = <<-EOT
+      $rendered_path = Join-Path -Path "${path.module}" -ChildPath "rendered\${var.environment}"
+      if (-Not (Test-Path $rendered_path -PathType Container)) {
+        throw "Rendered environment folder not found: $rendered_path. Available environments: dev, staging, production"
+      }
+    EOT
+    interpreter = ["powershell", "-Command"]
+  }
+}
+
 # Create SSH key for droplet access
 resource "digitalocean_ssh_key" "main" {
   name       = "${var.environment}-key"
   public_key = file("${path.module}/ssh/id_rsa.pub")
+  depends_on = [null_resource.validate_rendered_environment]
 
   lifecycle {
     ignore_changes = [name]

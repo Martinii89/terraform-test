@@ -22,7 +22,6 @@ services:
     depends_on:
       certbot-init:
         condition: service_completed_successfully
-        required: true
 
   api:
     image: mendhak/http-https-echo:39
