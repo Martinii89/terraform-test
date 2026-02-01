@@ -1,20 +1,56 @@
-# Terraform Infrastructure as Code - Digital Ocean & Cloudflare
+# Terraform Infrastructure as Code - DigitalOcean & Cloudflare
 
-This repository contains Terraform configuration to provision infrastructure on DigitalOcean with DNS management via Cloudflare.
+This repository contains Terraform configuration and deployment scripts to provision containerized infrastructure on DigitalOcean with DNS management via Cloudflare. It supports multiple environments (dev, staging, production) with templated configuration rendering and automated SSL certificate management.
 
 ## Architecture
 
-- **Load Balancer**: DigitalOcean Load Balancer with TLS termination (Let's Encrypt certificate)
-- **Web Server**: Ubuntu droplet (smallest available: 512MB RAM, 1vCPU, 10GB SSD)
-- **DNS**: Cloudflare DNS records pointing to the load balancer IP
-- **SSL/TLS**: Let's Encrypt certificate with ACME provider + automatic renewal via Cloudflare DNS validation
+- **Web Server**: Ubuntu droplet running Docker and docker-compose
+- **Container Orchestration**: Docker Compose for service management
+- **Reverse Proxy**: Nginx with automatic SSL certificate management via Let's Encrypt + Cloudflare DNS validation
+- **DNS**: Cloudflare DNS records pointing to the droplet IP
+- **SSL/TLS**: Let's Encrypt certificate with ACME provider and automatic renewal
+
+## Key Features
+
+- **Multi-environment support**: dev, staging, and production configurations
+- **Template-based rendering**: Configuration files templated and rendered per environment using PowerShell script
+- **Automated provisioning**: Cloud-init scripts handle Docker, docker-compose, and application deployment
+- **Infrastructure as code**: All resources managed via Terraform (DigitalOcean, Cloudflare, ACME, TLS providers)
+- **Flexible SSL/TLS**: Support for both Let's Encrypt staging (testing) and production environments
 
 ## Prerequisites
 
 1. **Terraform** >= 1.0 installed
 2. **DigitalOcean** account with API token
-3. **Cloudflare** account with API token and domain
-4. **SSH Key** for droplet access
+3. **Cloudflare** account with API token and zone ID
+4. **PowerShell** (for template rendering on Windows)
+5. **SSH Key** for droplet access
+
+## Project Structure
+
+```
+├── main.tf                 # Primary Terraform configuration (droplet, SSH key, cloud-init)
+├── providers.tf            # Provider configuration (DigitalOcean, Cloudflare, ACME, TLS)
+├── variables.tf            # Variable definitions for configuration
+├── outputs.tf              # Output values (droplet ID, IP, DNS records)
+├── scripts/
+│   ├── render.ps1         # PowerShell script to render templates per environment
+│   ├── plan-staging.bat   # Batch script for planning staging infrastructure
+│   └── apply-staging.bat  # Batch script for applying staging infrastructure
+├── templates/
+│   ├── cloud-init.yaml    # Cloud-init script template for droplet initialization
+│   └── infra/
+│       ├── docker-compose.yaml.tpl
+│       └── nginx/
+│           ├── nginx.conf
+│           └── sites/
+│               └── api.conf.tpl
+├── rendered/              # Generated configuration files per environment
+│   ├── dev/
+│   ├── staging/
+│   └── production/
+└── ssh/                   # SSH keys for droplet access (git-ignored)
+```
 
 ## Setup Instructions
 
@@ -38,112 +74,127 @@ cp terraform.tfvars.example terraform.tfvars
 Edit `terraform.tfvars` and add:
 
 - `digitalocean_token`: Your DigitalOcean API token
-- `cloudflare_api_token`: Your Cloudflare API token
+- `cloudflare_api_token`: Your Cloudflare API token with DNS edit permissions
 - `cloudflare_zone_id`: Your Cloudflare zone ID
 - `domain_name`: Your domain (e.g., example.com)
-- `letsencrypt_email`: Email for Let's Encrypt notifications
+- `letsencrypt_email`: Email for Let's Encrypt certificate notifications
+- `git_repo_url`: URL of this repository for cloud-init to clone
+- `environment`: Target environment (dev, staging, or production)
+- `region`: DigitalOcean region (default: nyc3)
 
-### 3. Initialize Terraform
+### 3. Render Configuration Templates
+
+Before applying Terraform, render the configuration templates for your target environment:
+
+```powershell
+.\scripts\render.ps1 staging terraform.example.com admin@example.com
+```
+
+This generates environment-specific docker-compose and nginx configurations in the `rendered/<environment>/` directory.
+
+### 4. Initialize Terraform
 
 ```bash
 terraform init
 ```
 
-### 4. Review the Plan
+### 5. Plan and Apply
 
 ```bash
-terraform plan
+terraform plan -var-file=terraform.tfvars -out=tfplan
+terraform apply tfplan
 ```
 
-### 5. Apply Configuration
+## Workflow
 
-```bash
-terraform apply
-```
+### Rendered Manifest Pattern
 
-### 6. Set up Automatic Certificate Renewal
+This project uses a **rendered manifest pattern** similar to [Kargo](https://kargo.akuity.io/), where templates are rendered to concrete configuration files and committed to version control. This approach provides:
 
-The ACME provider automatically renews certificates, but Terraform needs to run periodically to check. Set up a cronjob:
+- **Auditability**: Every deployed configuration is tracked in Git history
+- **Environment parity**: Consistent templates ensure environments differ only in their rendered output
+- **Declarative state**: Rendered files serve as the source of truth for deployed configurations
+- **Change visibility**: Git diffs clearly show what configuration changes are being deployed
 
-**Copy the environment file:**
-
-```bash
-cp .env.example .env
-# Edit .env and add your API tokens (or leave empty if using terraform.tfvars)
-```
-
-**Add a cronjob to run weekly (e.g., Sunday at midnight):**
-
-```bash
-# Make the script executable
-chmod +x scripts/renew-certificate.sh
-
-# Add to crontab (runs every Sunday at midnight)
-0 0 * * 0 /path/to/your/project/scripts/renew-certificate.sh
-```
-
-**Or use a daily run for more frequent checks:**
-
-```bash
-0 0 * * * /path/to/your/project/scripts/renew-certificate.sh
-```
-
-The script will:
-
-- Check certificate expiration (ACME provider does this automatically)
-- Renew if expiring within 30 days
-- Log all activity to `terraform-renewal.log`
-
-### 7. Verify Infrastructure
-
-Once applied, you can:
-
-1. Access outputs with: `terraform output`
-2. Verify DNS propagation: `dig example.com`
-3. Check certificate: `curl -I https://example.com`
-
-## File Structure
+**Flow:**
 
 ```
-.
-├── providers.tf          # Provider configuration (ACME, TLS, DigitalOcean, Cloudflare)
-├── variables.tf          # Variable definitions
-├── main.tf              # Main infrastructure resources
-├── outputs.tf           # Output values
-├── terraform.tfvars.example  # Example variables file
-├── .env.example         # Example environment file for renewal script
-├── scripts/
-│   ├── init.sh          # Droplet initialization script
-│   └── renew-certificate.sh  # Certificate renewal script
+templates/infra/ (source of truth)
+    ↓ [render.ps1]
+rendered/<environment>/ (committed to Git)
+    ↓ [cloud-init pulls]
+/opt/app (deployed on droplet)
 ```
 
-## Key Features
+### Template Rendering
 
-✅ **TLS Termination**: Load balancer handles HTTPS with Let's Encrypt certificates  
-✅ **ACME Provider**: Certificates managed via ACME with automatic DNS validation through Cloudflare  
-✅ **Auto-renewal**: Certificates automatically renew—just schedule `terraform apply` with cronjob  
-✅ **Health Checks**: Load balancer monitors droplet health  
-✅ **DNS Management**: Cloudflare DNS records with Terraform  
-✅ **Cloudflare Protection**: DNS records proxied through Cloudflare for DDoS protection
+The `render.ps1` script processes templates in `templates/infra/` and generates environment-specific configuration files:
+
+- Substitutes environment variables (`$DOMAIN_NAME`, `$LETSENCRYPT_EMAIL`)
+- Outputs to `rendered/<environment>/` directory
+- `.tpl` template files are rendered; static files are copied as-is
+- Rendered files are committed to version control for auditability
+
+Usage:
+
+```powershell
+.\scripts\render.ps1 <environment> <domain_name> <letsencrypt_email>
+```
+
+**Example workflow:**
+
+```powershell
+# 1. Render templates for staging environment
+.\scripts\render.ps1 staging api.example.com admin@example.com
+
+# 2. Review changes
+git diff rendered/staging/
+
+# 3. Commit rendered configuration
+git add rendered/staging/
+git commit -m "Update staging configuration for new domain"
+
+# 4. Deploy infrastructure
+terraform apply -var-file=terraform.tfvars
+```
+
+### Terraform Workflow
+
+1. **Validation**: Terraform validates that the rendered environment folder exists
+2. **SSH Key Creation**: Registers the public key with DigitalOcean
+3. **Droplet Provisioning**: Creates Ubuntu droplet with cloud-init user data
+4. **DNS Configuration**: Creates Cloudflare DNS records pointing to the droplet
+5. **Cloud-init Execution**: Droplet automatically pulls the rendered configs and starts services
+
+### Cloud-init Initialization
+
+When the droplet boots, cloud-init:
+
+1. Installs Docker and docker-compose
+2. Clones this repository to `/opt/infra`
+3. Copies environment-specific rendered configs to `/opt/app`
+4. Creates Certbot DNS credentials for Cloudflare
+5. Starts the docker-compose stack with nginx and application services
+
+## Environment Variables in Cloud-init
+
+The cloud-init template supports:
+
+- `GIT_REPO_URL`: Repository URL to clone
+- `ENVIRONMENT`: Target environment (dev, staging, production)
+- `CF_API_TOKEN`: Cloudflare API token for DNS validation and certificate renewal
 
 ## Terraform Outputs
 
 After `terraform apply`, retrieve outputs with:
 
 ```bash
-terraform output loadbalancer_ip        # Load balancer IP
-terraform output droplet_ipv4           # Droplet private IP
-terraform output certificate_id         # Certificate ID
-terraform output cloudflare_dns_record  # DNS record details
+terraform output              # Display all outputs
+terraform output droplet_id   # Droplet ID
+terraform output droplet_ipv4 # Droplet IP address
+terraform output domain_name  # Domain name
+terraform output cloudflare_dns_record # DNS record details
 ```
-
-## Scaling
-
-To add more droplets to the load balancer:
-
-1. Add more `digitalocean_droplet` resources in `main.tf`
-2. Add their IDs to the `droplet_ids` list in the load balancer resource
-3. Run `terraform plan` and `terraform apply`
 
 ## Customization
 
@@ -166,42 +217,72 @@ Modify `droplet_size` in `terraform.tfvars`:
 - `s-2vcpu-2gb-60gb` (2GB)
 - See [DigitalOcean docs](https://docs.digitalocean.com/products/droplets/concepts/compute-resources/) for full list
 
+### Enable Let's Encrypt Production
+
+By default, `acme_staging` is `true` (uses staging environment for testing). To use production certificates:
+
+```hcl
+acme_staging = false
+```
+
 ## Cost Considerations
 
 **Estimated monthly cost** (nyc3 region):
 
-- Load Balancer: $12/month
 - Droplet (s-1vcpu-512mb-10gb): $4/month
-- **Total: ~$16/month**
+- **Total: ~$4/month**
 
 ## Troubleshooting
 
+### Rendered Environment Folder Not Found
+
+Ensure you've run the render.ps1 script for your target environment:
+
+```powershell
+.\scripts\render.ps1 staging yourdomain.com your@email.com
+```
+
+This creates the required `rendered/staging/` directory structure.
+
 ### Certificate Not Issuing
 
-The ACME provider needs to validate DNS records with Cloudflare. This usually takes 1-2 minutes. If it fails:
+If the Let's Encrypt certificate fails:
 
-1. Verify `cloudflare_api_token` has `Zone:DNS:Edit` permissions
+1. Verify `cloudflare_api_token` has proper DNS edit permissions
 2. Verify `cloudflare_zone_id` is correct
-3. Check Terraform logs: `terraform apply -var-file="terraform.tfvars"` and look for ACME errors
-
-### Certificate Renewal Not Working
-
-If the cronjob doesn't seem to work:
-
-1. Ensure the script is executable: `chmod +x scripts/renew-certificate.sh`
-2. Check the log file: `tail -f terraform-renewal.log`
-3. Verify cron is running: `crontab -l`
-4. Test manually: `/path/to/scripts/renew-certificate.sh`
+3. For staging mode, certificates won't be trusted—switch `acme_staging = false` for production
+4. Check droplet logs after it boots: `ssh root@<droplet-ip> journalctl -u docker`
 
 ### DNS Not Resolving
 
 1. Verify zone ID is correct in Cloudflare
 2. Check nameservers are pointing to Cloudflare
-3. Allow 24 hours for DNS propagation
+3. Allow DNS propagation time (up to 24 hours)
+4. Test with: `nslookup yourdomain.com`
 
-### Droplet Not Healthy
+### Droplet Boot Issues
 
-Check droplet SSH access:
+SSH into the droplet and check cloud-init logs:
+
+```bash
+ssh -i ssh/id_rsa root@<droplet-ip>
+tail -f /var/log/cloud-init-output.log
+docker ps  # Check running containers
+```
+
+### Docker Compose Failed to Start
+
+Check the rendered configuration is correct:
+
+```bash
+cat rendered/<environment>/docker-compose.yaml
+```
+
+And verify environment variables are set in the droplet:
+
+```bash
+ssh -i ssh/id_rsa root@<droplet-ip> env | grep CF_API_TOKEN
+```
 
 ```bash
 ssh -i ssh/id_rsa root@<droplet-ip>
