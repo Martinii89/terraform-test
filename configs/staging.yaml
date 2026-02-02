@@ -1,0 +1,7 @@
+# Staging Environment Configuration
+# Generated configs used to render Docker Compose and Nginx templates
+
+environment: staging
+domainName: terraform.martinn.no
+letsencryptEmail: m4rtini89@gmail.com
+useCertbot: false

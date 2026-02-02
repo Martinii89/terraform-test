@@ -1,0 +1,7 @@
+# Production Environment Configuration
+# Generated configs used to render Docker Compose and Nginx templates
+
+environment: production
+domainName: your-production-domain.com
+letsencryptEmail: your-email@example.com
+useCertbot: false

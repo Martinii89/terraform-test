@@ -1,10 +1,12 @@
 server {
     listen 443 ssl http2;
     listen 443 quic reuseport;
-    server_name ${DOMAIN_NAME};
+    server_name {{ domainName }};
 
-    ssl_certificate     /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
+{% if useCertbot %}
+    ssl_certificate     /etc/letsencrypt/live/{{ domainName }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ domainName }}/privkey.pem;
+{% endif %}
 
     location / {
         proxy_pass http://api:3000;

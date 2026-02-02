@@ -19,7 +19,7 @@ variable "cloudflare_zone_id" {
 variable "environment" {
   description = "Environment name"
   type        = string
-  default     = "production"
+  default     = "staging"
 }
 
 variable "region" {

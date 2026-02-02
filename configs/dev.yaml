@@ -1,0 +1,7 @@
+# Development Environment Configuration
+# Generated configs used to render Docker Compose and Nginx templates
+
+environment: dev
+domainName: localhost
+letsencryptEmail: dev@example.com
+useCertbot: false
