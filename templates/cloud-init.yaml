@@ -8,16 +8,6 @@ packages:
   - docker.io
   - docker-compose
 
-write_files:
-  - path: /opt/app/nginx/origin-cert.pem
-    content: |
-      ${ORIGIN_CERT}
-    permissions: "0644"
-  - path: /opt/app/nginx/origin-key.pem
-    content: |
-      ${ORIGIN_KEY}
-    permissions: "0600"
-
 runcmd:
   # Clone infra repo to /opt/infra (git repository)
   - git clone ${GIT_REPO_URL} /opt/infra
