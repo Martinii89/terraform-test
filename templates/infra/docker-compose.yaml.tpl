@@ -22,9 +22,6 @@ services:
       - ./nginx/sites:/etc/nginx/conf.d:ro
 {% if useCertbot %}
       - certs:/etc/letsencrypt:ro
-{% else %}
-      - ./nginx/origin-cert.pem:/etc/nginx/conf.d/origin-cert.pem:ro
-      - ./nginx/origin-key.pem:/etc/nginx/conf.d/origin-key.pem:ro
 {% endif %}
 {% if useCertbot %}
     depends_on:

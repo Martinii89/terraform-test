@@ -46,7 +46,9 @@ resource "digitalocean_droplet" "web" {
 
 # Copy origin certificate files to the droplet
 resource "null_resource" "copy_certificates" {
-  depends_on = [digitalocean_droplet.web]
+  triggers = {
+    droplet_id = digitalocean_droplet.web.id
+  }
 
   # Wait for cloud-init to complete and create the nginx directory
   provisioner "remote-exec" {
@@ -66,7 +68,7 @@ resource "null_resource" "copy_certificates" {
 
   provisioner "file" {
     source      = "${path.module}/rendered/${var.environment}/nginx/origin-cert.pem"
-    destination = "/opt/app/nginx/origin-cert.pem"
+    destination = "/opt/app/nginx/sites/origin-cert.pem"
 
     connection {
       type        = "ssh"
@@ -78,7 +80,7 @@ resource "null_resource" "copy_certificates" {
 
   provisioner "file" {
     source      = "${path.module}/rendered/${var.environment}/nginx/origin-key.pem"
-    destination = "/opt/app/nginx/origin-key.pem"
+    destination = "/opt/app/nginx/sites/origin-key.pem"
 
     connection {
       type        = "ssh"
