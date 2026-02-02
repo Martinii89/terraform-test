@@ -37,6 +37,8 @@ resource "digitalocean_droplet" "web" {
     CF_API_TOKEN = var.cloudflare_api_token
     GIT_REPO_URL = var.git_repo_url
     ENVIRONMENT  = var.environment
+    ORIGIN_CERT  = cloudflare_origin_ca_certificate.api.certificate
+    ORIGIN_KEY   = tls_private_key.origin.private_key_pem
   })
 
   lifecycle {
@@ -113,4 +115,37 @@ resource "cloudflare_record" "droplet" {
   content = digitalocean_droplet.web.ipv4_address
   ttl     = var.cloudflare_proxy_main_domain ? 1 : 3600
   proxied = var.cloudflare_proxy_main_domain
+}
+# Create TLS certificate request for Cloudflare origin certificate
+resource "tls_private_key" "origin" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "tls_cert_request" "origin" {
+  private_key_pem = tls_private_key.origin.private_key_pem
+
+  subject {
+    common_name  = var.domain_name
+    organization = "Terraform IaC"
+  }
+}
+
+# Create Cloudflare origin certificate (for origin-to-Cloudflare encryption)
+resource "cloudflare_origin_ca_certificate" "api" {
+  csr                = tls_cert_request.origin.cert_request_pem
+  hostnames          = [var.domain_name]
+  request_type       = "origin-rsa"
+  requested_validity = 365
+}
+
+# Local files to store certificate and key for use in the droplet
+resource "local_sensitive_file" "origin_cert" {
+  content  = cloudflare_origin_ca_certificate.api.certificate
+  filename = "${path.module}/rendered/${var.environment}/nginx/origin-cert.pem"
+}
+
+resource "local_sensitive_file" "origin_key" {
+  content  = tls_private_key.origin.private_key_pem
+  filename = "${path.module}/rendered/${var.environment}/nginx/origin-key.pem"
 }
