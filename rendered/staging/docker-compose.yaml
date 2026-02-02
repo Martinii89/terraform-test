@@ -12,9 +12,6 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/sites:/etc/nginx/conf.d:ro
 
-      - ./nginx/origin-cert.pem:/etc/nginx/conf.d/origin-cert.pem:ro
-      - ./nginx/origin-key.pem:/etc/nginx/conf.d/origin-key.pem:ro
-
 
 
   api:
