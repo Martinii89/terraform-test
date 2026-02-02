@@ -56,3 +56,6 @@ Thumbs.db
 *.iml
 .vscode/
 infra/certbot/cloudflare.ini
+
+# Certificate files
+*.pem

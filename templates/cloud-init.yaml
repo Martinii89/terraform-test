@@ -13,7 +13,7 @@ runcmd:
   - git clone ${GIT_REPO_URL} /opt/infra
 
   # Create app working directory
-  - mkdir -p /opt/app
+  - mkdir -p /opt/app/nginx
 
   # Copy rendered config files for this environment to the app directory
   - cp /opt/infra/rendered/${ENVIRONMENT}/* /opt/app/

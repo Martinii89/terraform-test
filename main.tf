@@ -37,12 +37,55 @@ resource "digitalocean_droplet" "web" {
     CF_API_TOKEN = var.cloudflare_api_token
     GIT_REPO_URL = var.git_repo_url
     ENVIRONMENT  = var.environment
-    ORIGIN_CERT  = cloudflare_origin_ca_certificate.api.certificate
-    ORIGIN_KEY   = tls_private_key.origin.private_key_pem
   })
 
   lifecycle {
     create_before_destroy = true
+  }
+}
+
+# Copy origin certificate files to the droplet
+resource "null_resource" "copy_certificates" {
+  depends_on = [digitalocean_droplet.web]
+
+  # Wait for cloud-init to complete and create the nginx directory
+  provisioner "remote-exec" {
+    inline = [
+      "while [ ! -d /opt/app/nginx ]; do echo 'Waiting for /opt/app/nginx...'; sleep 5; done",
+      "echo 'Directory ready'"
+    ]
+
+    connection {
+      type        = "ssh"
+      user        = "root"
+      private_key = file("${path.module}/ssh/id_rsa")
+      host        = digitalocean_droplet.web.ipv4_address
+      timeout     = "5m"
+    }
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/rendered/${var.environment}/nginx/origin-cert.pem"
+    destination = "/opt/app/nginx/origin-cert.pem"
+
+    connection {
+      type        = "ssh"
+      user        = "root"
+      private_key = file("${path.module}/ssh/id_rsa")
+      host        = digitalocean_droplet.web.ipv4_address
+    }
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/rendered/${var.environment}/nginx/origin-key.pem"
+    destination = "/opt/app/nginx/origin-key.pem"
+
+    connection {
+      type        = "ssh"
+      user        = "root"
+      private_key = file("${path.module}/ssh/id_rsa")
+      host        = digitalocean_droplet.web.ipv4_address
+    }
   }
 }
 
